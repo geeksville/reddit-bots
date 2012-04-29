@@ -44,7 +44,7 @@ class AmericanBot:
     def __init__(self, passwords):
         name = AmericanBot.myName        
         print "Logging in: ", name
-        self.r = reddit.Reddit(user_agent='All-American-Bot by /u/punkgeek')
+        self.r = reddit.Reddit(user_agent=name + ' by /u/punkgeek')
         self.r.login(name, passwords[name])
         locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
     
