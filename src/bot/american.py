@@ -42,8 +42,9 @@ class AmericanBot:
     pattern = re.compile(r"[^/](\d[,\.\d]*) ([a-zA-Z]+)")
 
     def __init__(self, passwords):
+        name = AmericanBot.myName        
+        print "Logging in: ", name
         self.r = reddit.Reddit(user_agent='All-American-Bot by /u/punkgeek')
-        name = AmericanBot.myName
         self.r.login(name, passwords[name])
         locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
     
@@ -161,6 +162,7 @@ class AmericanBot:
             comments = s.comments
             # print "*** Submission ", str(s), "(%d top level comments)" % len(comments)
             sys.stdout.write('*') # Show progress
+            sys.stdout.flush()
             numdone = numdone + 1
             if numdone % 20 == 0:
                 print
