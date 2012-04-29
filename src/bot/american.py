@@ -23,11 +23,14 @@ class AmericanBot:
              'mph': (1.609344, 'km/h'),
              
              'gal': (3.78541178, 'L'),
+             'gallons': (3.78541178, 'L'),             
                       
              'lbs': (0.45359237, 'kg'),
              
              #'inch': (2.54, 'cm'),
-             #'inches': (2.54, 'cm'),             
+             #'inches': (2.54, 'cm'),       
+             'ft': (0.3048, 'm'),      
+             'feet': (0.3048, 'm'),             
              'yard': (0.9144, 'm'),
              'mile': (1.609344, 'km'),
              'miles': (1.609344, 'km')                       
@@ -50,7 +53,6 @@ class AmericanBot:
         if matches is None:
             return None
         
-        # FIXME - add a try/catch block for parsing
         conversions = []
         for m in matches:
             amount = m.group(1)
@@ -66,7 +68,7 @@ class AmericanBot:
                         conversions.append(r)
                 else:
                     if unit not in AmericanBot.uninteresting:
-                        # print "  Possible: ", amount, unit
+                        #print "  Possible: ", amount, unit
                         pass
             except:
                 print "Ignoring:", sys.exc_info()[0]
@@ -153,7 +155,6 @@ class AmericanBot:
                         
     def scanSubmissions(self, submissions):     
         #[str(x) for x in submissions]
-        # FIXME - ignore comments we've already scanned
         # Only reply to fresh comments, on popular threads
         numdone = 0
         for s in submissions:
