@@ -8,6 +8,8 @@ import reddit
 import re
 import sys
 import locale
+import calendar
+import time
 
 from time import sleep
 
@@ -38,15 +40,18 @@ class AmericanBot:
     
     uninteresting = set(['dollars', 'dollar', 'hour', 'hours', 'week', 'weeks', 'year', 'years', 'days', 'months', 'million', 'seconds', 'minutes', 'downvotes', 'upvotes'])
  
-    # of the form " 4,800 gal" or " 3.8 lbs" but not "1/2 lbs"
+    # of the form " 4,800 gal" or " 3.8 lbs", "110 lbs" but not "1/2 lbs"
     pattern = re.compile(r"[^/](\d[,\.\d]*) ([a-zA-Z]+)")
 
+    testMessages = ["110 lbs", "I need 10 gallons of milk", "Nearly 1/10 mile." ]
+    
     def __init__(self, passwords):
         name = AmericanBot.myName        
         print "Logging in: ", name
         self.r = reddit.Reddit(user_agent=name + ' by /u/punkgeek')
         self.r.login(name, passwords[name])
         locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+        self.lastCommentId = 0
     
     '''Generate a units response message, or None for not interested'''
     def convertUnits(self, msg):
@@ -62,7 +67,7 @@ class AmericanBot:
             try:
                 if tple != None:
                     amountf = locale.atof(amount)
-                    if amountf >= 6:    # Ignore very small values
+                    if amountf >= 6 or amountf > 10000:    # Ignore very large/small values
                         newAmount = amountf * tple[0]
                         newUnit = tple[1]
                         r = '%s %s -> %0.1f %s' % (amount, unit, newAmount, newUnit)
@@ -80,6 +85,11 @@ class AmericanBot:
         asStr = ", ".join(conversions)
         return "(For our friends outside the USA... %s) - Yeehaw!" % (asStr)
     
+    def runTests(self):
+        print "Sanity tests:"
+        for s in AmericanBot.testMessages:
+            print "%s -> %s" % (s, self.convertUnits(s))
+            
     def getAllComments(self, comments):
         """Handle resolving MoreComments"""
         result = []
@@ -123,6 +133,8 @@ class AmericanBot:
         if not isinstance(c, reddit.objects.Comment):
             return
         
+        #print "Considering", c.id, c.created_utc
+        
         # Ignore low ranking comments (that user may be likely to downvote our response)
         score = c.ups - c.downs
         if score < 1:
@@ -141,6 +153,17 @@ class AmericanBot:
                 sleep(detail.sleep_time + 5)
                 c.reply(resp)
     
+    def hasReplied(self, submission):
+        """Recurse through all comments - skipping any comments by me"""
+        myid = self.r.user.name
+        
+        for c in submission.comments_flat: 
+            if isinstance(c, reddit.objects.Comment):
+                if c.author and c.author.name == myid:
+                    return True  
+                
+        return False
+                        
     def scanComments(self, comments):
         """Recurse through all comments - skipping any comments by me"""
         myid = self.r.user.name
@@ -159,7 +182,12 @@ class AmericanBot:
         # Only reply to fresh comments, on popular threads
         numdone = 0
         for s in submissions:
-            comments = s.comments
+            if self.hasReplied(s): # Skip entire article if I've replied even once (FIXME, make optional)
+                sys.stdout.write('?')
+            else:
+                comments = s.comments
+                self.scanComments(comments)
+                
             # print "*** Submission ", str(s), "(%d top level comments)" % len(comments)
             sys.stdout.write('*') # Show progress
             sys.stdout.flush()
@@ -167,31 +195,52 @@ class AmericanBot:
             if numdone % 20 == 0:
                 print
                 print "Completed:", numdone
-            self.scanComments(comments)
             
             sleep(2) # Wait 2 secs per reddit (FIXME, really should wait per comment too)      
-                      
+          
     def scanAll(self):
         subreddits = ['sneakyfrog', 'politics']
         for subreddit in subreddits:
             submissions = self.r.get_subreddit(subreddit).get_hot(limit=25)
             self.scanSubmissions(submissions)
 
+    # Buggy - misses many comments because reddit comments are being generated too quickly
+    def scanRecentComments(self):
+        comments = self.r.get_all_comments(limit=500)
+        i = 0
+        firstCommentId = None
+        for c in comments: 
+            if isinstance(c, reddit.objects.Comment):
+                if i == 0:
+                    firstCommentId = c.id
+                    
+                i = i + 1
+                if c.id == self.lastCommentId:
+                    print "Reached end of new comments after only %d records" % i
+                    break
+                
+                self.processComment(c)  
+                
+                sys.stdout.write('.') # Show progress
+                sys.stdout.flush()    
+                if i % 20 == 0:
+                    print
+                    print "Completed:", i                
+                
+        self.lastCommentId = firstCommentId
+        
     def scanFrontPage(self):
         self.scanSubmissions(self.r.get_front_page(limit=200))
-        
-    def scanRecentComments(self):
-        comments = self.r.get_all_comments() 
-        for c in comments: 
-            # This will process one 'page' of comments - that seems enough for now
-            self.processComment(c)        
         
 if __name__ == '__main__':
     passwords = eval(open("passwords.dict").read())
     bot = AmericanBot(passwords)
+    bot.runTests()
     while True:
         try:
             bot.scanFrontPage()
+            #bot.scanRecentComments()
+            #sleep(60)
         except:
             print "Restarting scan due to:", sys.exc_info()[0]
         
